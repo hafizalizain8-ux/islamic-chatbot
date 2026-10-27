@@ -61,7 +61,7 @@ if user_question:
 
             # Chat initialize aur message send karna (gemini-2.5-flash standard stable version hai)
             chat = client.chats.create(
-                model="gemini-2.5-flash",
+                model="gemini-3.8-flash",
                 history=formatted_history,
                 config=types.GenerateContentConfig(
                     system_instruction=islamic_instructions,

@@ -1,7 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
-import time
-from google.api_core.exceptions import ServiceUnavailable, InternalServerError
+from openai import OpenAI
 
 # Page Configuration
 st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="centered")
@@ -10,14 +8,14 @@ st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="ce
 st.title("🕌 Al-Huda Islamic Chatbot")
 st.write("Aap yahan Islam ke mutaliq guftegu kar sakte hain.")
 
-# Streamlit Secrets se Key uthana
-if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# Streamlit Secrets se OpenAI Key uthana
+if "OPENAI_API_KEY" in st.secrets:
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 else:
-    st.error("API Key nahi mili! Bara-e-maharbani Streamlit Secrets me 'GOOGLE_API_KEY' set karein.")
+    st.error("API Key nahi mili! Bara-e-maharbani Streamlit Secrets me 'OPENAI_API_KEY' set karein.")
     st.stop()
 
-# System Instructions / Prompt (Gemini ko behtar Urdu sikhane ke liye)
+# System Instructions / Prompt
 SYSTEM_INSTRUCTIONS = """
 You are an advanced Islamic Chatbot named Al-Huda.
 Your goal is to answer questions strictly according to the Quran, Sunnah, and authentic sources.
@@ -34,30 +32,27 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Generator function jo Gemini se real-time stream lekar aayegi
-def get_gemini_response_stream(prompt):
-    model = genai.GenerativeModel(
-        model_name="gemini-3.8-flash",
-        system_instruction=SYSTEM_INSTRUCTIONS
-    )
+# Generator function jo OpenAI se fast data stream lekar aayegi
+def get_openai_response_stream(user_prompt):
+    messages = [{"role": "system", "content": SYSTEM_INSTRUCTIONS}]
     
-    for attempt in range(3):
-        try:
-            # stream=True lagane se text sath-sath load hota hai bina wait kiye
-            response = model.generate_content(prompt, stream=True)
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-            return
-        except (ServiceUnavailable, InternalServerError):
-            if attempt < 2:
-                time.sleep(2 ** attempt)
-                continue
-            else:
-                yield "⚠️ **Technical Error (503):** Server is waqt busy hai. Bara-e-maharbani 1-2 minute baad koshish karein."
-        except Exception as e:
-            yield f"⚠️ Ek error aaya hai: {str(e)}"
-            return
+    for msg in st.session_state.messages:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+        
+    messages.append({"role": "user", "content": user_prompt})
+
+    try:
+        # GPT-4o-Mini Roman Urdu ke liye behtareen aur super fast hai
+        stream = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            stream=True,
+        )
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        yield f"⚠️ Ek error aaya hai: {str(e)}"
 
 # User Input Box
 if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
@@ -65,11 +60,11 @@ if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
     # User message display
     with st.chat_message("user"):
         st.markdown(user_query)
-    st.session_state.messages.append({"role": "user", "content": user_query})
     
-    # Bot response display (Fast Gemini Streaming)
+    # Bot response display (Super Fast ChatGPT Streaming)
     with st.chat_message("assistant"):
-        bot_response = st.write_stream(get_gemini_response_stream(user_query))
+        bot_response = st.write_stream(get_openai_response_stream(user_query))
             
-    # History me save karna
+    # Dono messages ko history me save karna
+    st.session_state.messages.append({"role": "user", "content": user_query})
     st.session_state.messages.append({"role": "assistant", "content": bot_response})

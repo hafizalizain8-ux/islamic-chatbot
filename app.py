@@ -15,7 +15,7 @@ else:
     st.error("API Key nahi mili! Bara-e-maharbani Streamlit Secrets me 'COHERE_API_KEY' set karein.")
     st.stop()
 
-# System Instructions / Prompt (Cohere ko natural Urdu sikhane ke liye)
+# System Instructions / Prompt
 SYSTEM_INSTRUCTIONS = """
 You are an advanced Islamic Chatbot named Al-Huda.
 Your goal is to answer questions strictly according to the Quran, Sunnah, and authentic sources.
@@ -42,9 +42,9 @@ def get_cohere_response_stream(user_prompt):
     messages.append({"role": "user", "content": user_prompt})
 
     try:
-        # command-r-plus Roman Urdu ke liye best aur free hai
+        # Upgraded to active 2026 model 'command-r-7b'
         res = co.chat_stream(
-            model="command-r-plus",
+            model="command-r-7b",
             messages=messages
         )
         for chunk in res:

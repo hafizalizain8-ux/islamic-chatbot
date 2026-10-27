@@ -10,7 +10,7 @@ st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="ce
 st.title("🕌 Al-Huda Islamic Chatbot")
 st.write("Aap yahan Islam ke mutaliq guftegu kar sakte hain.")
 
-# Streamlit Secrets se Key uthana (Aapke platform ke mutabiq GOOGLE_API_KEY use kiya hai)
+# Streamlit Secrets se Key uthana
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
@@ -33,26 +33,30 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Model Response with Retry Logic (Aapka 503 error hal karne ke liye)
-def get_gemini_response(prompt):
-    # System instructions ke sath model config
+# Generator function jo data ko stream (tukron me) lekar aayegi
+def get_gemini_response_stream(prompt):
     model = genai.GenerativeModel(
-        model_name="gemini-3.8-flash",
+        model_name="gemini-1.5-flash",
         system_instruction=SYSTEM_INSTRUCTIONS
     )
     
     for attempt in range(3):
         try:
-            response = model.generate_content(prompt)
-            return response.text
+            # stream=True karne se text sath-sath load hota hai
+            response = model.generate_content(prompt, stream=True)
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+            return # Agar kamyabi se chal jaye toh loop khatam
         except (ServiceUnavailable, InternalServerError):
             if attempt < 2:
                 time.sleep(2 ** attempt)
                 continue
             else:
-                return "⚠️ **Technical Error (503):** Server is waqt busy hai. Bara-e-maharbani 1-2 minute baad dobara koshish karein."
+                yield "⚠️ **Technical Error (503):** Server is waqt busy hai. Bara-e-maharbani 1-2 minute baad dobara koshish karein."
         except Exception as e:
-            return f"⚠️ Ek error aaya hai: {str(e)}"
+            yield f"⚠️ Ek error aaya hai: {str(e)}"
+            return
 
 # User Input Box
 if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
@@ -62,10 +66,10 @@ if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
         st.markdown(user_query)
     st.session_state.messages.append({"role": "user", "content": user_query})
     
-    # Bot response display aur save
+    # Bot response display (Streaming ke sath) aur save
     with st.chat_message("assistant"):
-        with st.spinner("Al-Huda jawab likh raha hai..."):
-            bot_response = get_gemini_response(user_query)
-            st.markdown(bot_response)
+        # st.write_stream khud hi text ko aik aik lafza kar ke screen par chalaye ga
+        bot_response = st.write_stream(get_gemini_response_stream(user_query))
             
+    # History me mukammal jawab save karna
     st.session_state.messages.append({"role": "assistant", "content": bot_response})

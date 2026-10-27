@@ -42,15 +42,15 @@ def get_groq_response_stream(user_prompt):
     messages.append({"role": "user", "content": user_prompt})
 
     try:
-        # 2026 Active Production Model on Groq
         completion = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=messages,
             stream=True,
         )
         for chunk in completion:
-            if chunk.choices.delta.content:
-                yield chunk.choices.delta.content
+            # Fixed list index error here
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
     except Exception as e:
         yield f"⚠️ Ek error aaya hai: {str(e)}"
 

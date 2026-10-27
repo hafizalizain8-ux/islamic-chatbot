@@ -36,7 +36,7 @@ for message in st.session_state.messages:
 # Generator function jo data ko stream (tukron me) lekar aayegi
 def get_gemini_response_stream(prompt):
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3.8-flash",
         system_instruction=SYSTEM_INSTRUCTIONS
     )
     

@@ -42,9 +42,9 @@ def get_groq_response_stream(user_prompt):
     messages.append({"role": "user", "content": user_prompt})
 
     try:
-        # Upgraded to Llama 3.3 Versatile Model
+        # 2026 Active Production Model on Groq
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-20b",
             messages=messages,
             stream=True,
         )

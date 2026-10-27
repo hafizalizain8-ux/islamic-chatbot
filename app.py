@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 
 # 1. Apni Gemini API Key yahan lagayein
-GOOGLE_API_KEY = "AQ.Ab8RN6IYdujCjF9buKdZLQ64dL9LeoGqBFa5Cv2-ZisrNlyQ1Q"  # Apni mukammal key check kar lein
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # 2. Page Configuration

@@ -1,79 +1,78 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+import time
+from google.api_core.exceptions import ServiceUnavailable, InternalServerError
 
-# 1. Page Configuration
-st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="centered")
+# Page Configuration (Title and Icon)
+st.set_page_config(page_title="Al-Huda Islamic Chatbot", page_icon="🕌", layout="centered")
+
+# Custom CSS for styling (Interface ko khoobsurat banane ke liye)
+st.markdown("""
+    <style>
+    .stChatMessage {
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    h1 {
+        color: #1E3A8A;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# App Title and Description
 st.title("🕌 Al-Huda Islamic Chatbot")
 st.write("Aap yahan Islam ke mutaliq guftegu kar sakte hain.")
 
-# 2. Secret Memory se API Key uthana
-if "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
+# Secrets se API Key extract karna (Jo hum ne Streamlit Cloud dashboard par set ki thi)
+if "GEMINI_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 else:
-    st.error("API Key settings mein sahi se set nahi hai.")
+    st.error("API Key nahi mili! Bara-e-maharbani Streamlit Secrets me 'GEMINI_API_KEY' set karein.")
     st.stop()
 
-# 3. AI Rules (System Instruction)
-islamic_instructions = """
-You are an advanced Islamic Chatbot named Al-Huda. 
-Your job is to answer questions strictly according to the Quran, Sunnah, and authentic Islamic knowledge.
-1. Answer politely in Urdu, Roman Urdu, or English based on user's language.
-2. If the user asks anything outside of Islam, politely decline.
-3. Keep the conversation context in mind.
-"""
+# Chat History Initialize karna (Taakay purani baatein yaad rahein)
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# 4. Chat Memory / History Setup
-if "ui_history" not in st.session_state:
-    st.session_state.ui_history = []
-
-# 5. Purani Chat Screen Par Render Karna
-for message in st.session_state.ui_history:
+# Purane messages ko screen par dikhana
+for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.write(message["content"])
+        st.markdown(message["content"])
 
-# 6. Chat Input Box (ChatGPT Style)
-user_question = st.chat_input("Apna Islamic sawal yahan likhein...")
-
-if user_question:
-    # User ka sawal screen par dikhana
-    with st.chat_message("user"):
-        st.write(user_question)
-    st.session_state.ui_history.append({"role": "user", "content": user_question})
-
-    # AI ka jawab streaming ke sath nikalna (Super Fast)
-    with st.chat_message("assistant"):
+# Upgraded Function: Jo 503 error ko handle karega aur response generate karega
+def get_gemini_response(prompt):
+    # Hum 'gemini-1.5-flash' use kar rahe hain kyunki yeh bohot fast aur stable hai
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    # 3 baar koshish (retry) karega agar server down ho
+    for attempt in range(3):
         try:
-            client = genai.Client(api_key=api_key)
-            
-            # Poori history ko format karna
-            formatted_history = []
-            for msg in st.session_state.ui_history[:-1]:
-                formatted_history.append(
-                    types.Content(
-                        role="user" if msg["role"] == "user" else "model",
-                        parts=[types.Part.from_text(text=msg["content"])]
-                    )
-                )
-
-            # Chat initialize karna
-            chat = client.chats.create(
-                model="gemini-3.8-flash",
-                history=formatted_history,
-                config=types.GenerateContentConfig(
-                    system_instruction=islamic_instructions,
-                    temperature=0.3
-                )
-            )
-            
-            # Real-time streaming response (Yeh speed barhaye ga)
-            response = chat.send_message(user_question)
-            
-            # Jawab ko aik hi dafa likhna taake server freeze na ho
-            st.write(response.text)
-            
-            # AI ka jawab UI memory mein save karna
-            st.session_state.ui_history.append({"role": "assistant", "content": response.text})
-            
+            response = model.generate_content(prompt)
+            return response.text
+        except (ServiceUnavailable, InternalServerError):
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # Pehle 1s, phir 2s ruk kar dobara try karega
+                continue
+            else:
+                return "⚠️ **Koi technical error aaya hai (503/500):** Google ka server is waqt bohot zyada busy hai. Bara-e-maharbani 1-2 minute baad dobara koshish karein."
         except Exception as e:
-            st.error(f"Koi technical error aaya hai: {e}")
+            return f"⚠️ Ek unexpected error aaya hai: {str(e)}"
+
+# User Input Box
+if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
+    
+    # User ka message screen par dikhana aur history me save karna
+    with st.chat_message("user"):
+        st.markdown(user_query)
+    st.session_state.messages.append({"role": "user", "content": user_query})
+    
+    # Bot ka response generate karna aur screen par dikhana
+    with st.chat_message("assistant"):
+        with st.spinner("Al-Huda jawab likh raha hai..."):
+            bot_response = get_gemini_response(user_query)
+            st.markdown(bot_response)
+            
+    # Bot ka response history me save karna
+    st.session_state.messages.append({"role": "assistant", "content": bot_response})

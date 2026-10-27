@@ -52,7 +52,7 @@ def get_openai_response_stream(user_prompt):
             if chunk.choices[0].delta.content is not None:
                 yield chunk.choices[0].delta.content
     except Exception as e:
-        yield f"⚠️ Ek error aaya hai: {str(e)}"
+        yield f"⚠️ new Error accured: {str(e)}"
 
 # User Input Box
 if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):

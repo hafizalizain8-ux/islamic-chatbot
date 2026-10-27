@@ -8,10 +8,9 @@ st.title("🕌 Al-Huda Islamic Chatbot")
 st.write("Aap yahan Islam ke mutaliq guftegu kar sakte hain.")
 
 # 2. Secret Memory se API Key uthana
-try:
+if "GOOGLE_API_KEY" in st.secrets:
     api_key = st.secrets["GOOGLE_API_KEY"]
-    client = genai.Client(api_key=api_key)
-except Exception as e:
+else:
     st.error("API Key settings mein sahi se set nahi hai.")
     st.stop()
 
@@ -44,11 +43,9 @@ if user_question:
 
     # AI ka jawab streaming ke sath nikalna (Super Fast)
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        
         try:
-            # Nayi library ka chat session create karna
+            client = genai.Client(api_key=api_key)
+            
             # Poori history ko format karna
             formatted_history = []
             for msg in st.session_state.ui_history[:-1]:
@@ -59,7 +56,7 @@ if user_question:
                     )
                 )
 
-            # Chat initialize aur message send karna (gemini-2.5-flash standard stable version hai)
+            # Chat initialize karna
             chat = client.chats.create(
                 model="gemini-3.8-flash",
                 history=formatted_history,
@@ -69,15 +66,14 @@ if user_question:
                 )
             )
             
-            # Real-time streaming response
+            # Real-time streaming response (Yeh speed barhaye ga)
             response = chat.send_message(user_question)
             
-            # Text ko display karna
-            full_response = response.text
-            message_placeholder.write(full_response)
+            # Jawab ko aik hi dafa likhna taake server freeze na ho
+            st.write(response.text)
             
             # AI ka jawab UI memory mein save karna
-            st.session_state.ui_history.append({"role": "assistant", "content": full_response})
+            st.session_state.ui_history.append({"role": "assistant", "content": response.text})
             
         except Exception as e:
             st.error(f"Koi technical error aaya hai: {e}")

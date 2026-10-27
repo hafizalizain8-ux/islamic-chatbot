@@ -34,7 +34,6 @@ for message in st.session_state.messages:
 
 # Generator function jo Groq se fast data stream lekar aayegi
 def get_groq_response_stream(user_prompt):
-    # Chat history ko Groq format me convert karna sath me system prompt dena
     messages = [{"role": "system", "content": SYSTEM_INSTRUCTIONS}]
     
     for msg in st.session_state.messages:
@@ -43,22 +42,22 @@ def get_groq_response_stream(user_prompt):
     messages.append({"role": "user", "content": user_prompt})
 
     try:
-        # Hum llama-3.3-70b-versatile ya llama-3.1-8b-instant use kar rahe hain jo bohot fast hain
+        # Fixed Model Name here
         completion = client.chat.completions.create(
-        model="llama3-8b-8192",
+            model="llama3-8b-8192",
             messages=messages,
             stream=True,
         )
         for chunk in completion:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+            if chunk.choices.delta.content:
+                yield chunk.choices.delta.content
     except Exception as e:
         yield f"⚠️ Ek error aaya hai: {str(e)}"
 
 # User Input Box
 if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
     
-    # User message display aur save
+    # User message display
     with st.chat_message("user"):
         st.markdown(user_query)
     

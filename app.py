@@ -42,9 +42,9 @@ def get_cohere_response_stream(user_prompt):
     messages.append({"role": "user", "content": user_prompt})
 
     try:
-        # Upgraded to active 2026 model 'command-r-7b'
+        # Fixed Model ID format for SDK 
         res = co.chat_stream(
-            model="command-r-7b",
+            model="command-r7b-12-2024",
             messages=messages
         )
         for chunk in res:

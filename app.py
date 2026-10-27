@@ -1,16 +1,21 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
-# 1. Apni Gemini API Key yahan lagayein
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-genai.configure(api_key=GOOGLE_API_KEY)
-
-# 2. Page Configuration
+# 1. Page Configuration
 st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="centered")
 st.title("🕌 Al-Huda Islamic Chatbot")
 st.write("Aap yahan Islam ke mutaliq guftegu kar sakte hain.")
 
-# 3. AI Rules (System Prompt)
+# 2. Secret Memory se API Key uthana
+try:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    client = genai.Client(api_key=api_key)
+except Exception as e:
+    st.error("API Key settings mein sahi se set nahi hai.")
+    st.stop()
+
+# 3. AI Rules (System Instruction)
 islamic_instructions = """
 You are an advanced Islamic Chatbot named Al-Huda. 
 Your job is to answer questions strictly according to the Quran, Sunnah, and authentic Islamic knowledge.
@@ -19,18 +24,9 @@ Your job is to answer questions strictly according to the Quran, Sunnah, and aut
 3. Keep the conversation context in mind.
 """
 
-# 4. CHAT HISTORY UI AUR INTERNAL CHAT OBJECT INITALIZE (SIRF EIK DAFA CHALEGA)
+# 4. Chat Memory / History Setup
 if "ui_history" not in st.session_state:
     st.session_state.ui_history = []
-
-if "ai_chat_session" not in st.session_state:
-    # Model ko loop se bahar initialize kiya taake speed tez ho
-    model = genai.GenerativeModel(
-        model_name="gemini-3.8-flash",
-        system_instruction=islamic_instructions
-    )
-    # Chat session ko memory mein permanent save kar liya
-    st.session_state.ai_chat_session = model.start_chat(history=[])
 
 # 5. Purani Chat Screen Par Render Karna
 for message in st.session_state.ui_history:
@@ -52,18 +48,36 @@ if user_question:
         full_response = ""
         
         try:
-            # Ab hum har dafa naya chat nahi banate, purane chalte hue session ko call karte hain
-            response = st.session_state.ai_chat_session.send_message(user_question, stream=True)
+            # Nayi library ka chat session create karna
+            # Poori history ko format karna
+            formatted_history = []
+            for msg in st.session_state.ui_history[:-1]:
+                formatted_history.append(
+                    types.Content(
+                        role="user" if msg["role"] == "user" else "model",
+                        parts=[types.Part.from_text(text=msg["content"])]
+                    )
+                )
+
+            # Chat initialize aur message send karna (gemini-2.5-flash standard stable version hai)
+            chat = client.chats.create(
+                model="gemini-2.5-flash",
+                history=formatted_history,
+                config=types.GenerateContentConfig(
+                    system_instruction=islamic_instructions,
+                    temperature=0.3
+                )
+            )
             
-            # Lafz ba lafz real-time print hoga
-            for chunk in response:
-                full_response += chunk.text
-                message_placeholder.write(full_response + "▌")
+            # Real-time streaming response
+            response = chat.send_message(user_question)
             
+            # Text ko display karna
+            full_response = response.text
             message_placeholder.write(full_response)
             
             # AI ka jawab UI memory mein save karna
             st.session_state.ui_history.append({"role": "assistant", "content": full_response})
             
         except Exception as e:
-            st.error(f"Koi error aaya hai: {e}")
+            st.error(f"Koi technical error aaya hai: {e}")

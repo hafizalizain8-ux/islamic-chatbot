@@ -1,7 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from groq import Groq
 import time
-from google.api_core.exceptions import ServiceUnavailable, InternalServerError
 
 # Page Configuration
 st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="centered")
@@ -10,11 +9,11 @@ st.set_page_config(page_title="Al-Huda Islamic AI", page_icon="🕌", layout="ce
 st.title("🕌 Al-Huda Islamic Chatbot")
 st.write("Aap yahan Islam ke mutaliq guftegu kar sakte hain.")
 
-# Streamlit Secrets se Key uthana
-if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# Streamlit Secrets se Groq Key uthana
+if "GROQ_API_KEY" in st.secrets:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 else:
-    st.error("API Key nahi mili! Bara-e-maharbani Streamlit Secrets me 'GOOGLE_API_KEY' set karein.")
+    st.error("API Key nahi mili! Bara-e-maharbani Streamlit Secrets me 'GROQ_API_KEY' set karein.")
     st.stop()
 
 # System Instructions / Prompt
@@ -33,30 +32,28 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Generator function jo data ko stream (tukron me) lekar aayegi
-def get_gemini_response_stream(prompt):
-    model = genai.GenerativeModel(
-        model_name="gemini-3.8-flash",
-        system_instruction=SYSTEM_INSTRUCTIONS
-    )
+# Generator function jo Groq se fast data stream lekar aayegi
+def get_groq_response_stream(user_prompt):
+    # Chat history ko Groq format me convert karna sath me system prompt dena
+    messages = [{"role": "system", "content": SYSTEM_INSTRUCTIONS}]
     
-    for attempt in range(3):
-        try:
-            # stream=True karne se text sath-sath load hota hai
-            response = model.generate_content(prompt, stream=True)
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-            return # Agar kamyabi se chal jaye toh loop khatam
-        except (ServiceUnavailable, InternalServerError):
-            if attempt < 2:
-                time.sleep(2 ** attempt)
-                continue
-            else:
-                yield "⚠️ **Technical Error (503):** Server is waqt busy hai. Bara-e-maharbani 1-2 minute baad dobara koshish karein."
-        except Exception as e:
-            yield f"⚠️ Ek error aaya hai: {str(e)}"
-            return
+    for msg in st.session_state.messages:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+        
+    messages.append({"role": "user", "content": user_prompt})
+
+    try:
+        # Hum llama-3.3-70b-versatile ya llama-3.1-8b-instant use kar rahe hain jo bohot fast hain
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            stream=True,
+        )
+        for chunk in completion:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        yield f"⚠️ Ek error aaya hai: {str(e)}"
 
 # User Input Box
 if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
@@ -64,12 +61,11 @@ if user_query := st.chat_input("Apna Islamic sawal yahan likhein..."):
     # User message display aur save
     with st.chat_message("user"):
         st.markdown(user_query)
-    st.session_state.messages.append({"role": "user", "content": user_query})
     
-    # Bot response display (Streaming ke sath) aur save
+    # Bot response display (Super Fast Streaming)
     with st.chat_message("assistant"):
-        # st.write_stream khud hi text ko aik aik lafza kar ke screen par chalaye ga
-        bot_response = st.write_stream(get_gemini_response_stream(user_query))
+        bot_response = st.write_stream(get_groq_response_stream(user_query))
             
-    # History me mukammal jawab save karna
+    # Dono messages ko history me save karna
+    st.session_state.messages.append({"role": "user", "content": user_query})
     st.session_state.messages.append({"role": "assistant", "content": bot_response})

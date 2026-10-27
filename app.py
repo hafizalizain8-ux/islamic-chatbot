@@ -45,7 +45,7 @@ def get_groq_response_stream(user_prompt):
     try:
         # Hum llama-3.3-70b-versatile ya llama-3.1-8b-instant use kar rahe hain jo bohot fast hain
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+        model="llama3-8b-8192",
             messages=messages,
             stream=True,
         )
